@@ -9,13 +9,13 @@ const PAL = {
 };
 const FOES = {
   julian: {
-    chapter: 2, name: 'Julian au Bellona', pal: PAL.julian, hp: 90, speed: 150, arena: 'passage', drone: 'duel',
+    chapter: 2, name: 'Julian au Bellona', pal: PAL.julian, hp: 115, speed: 150, arena: 'passage', drone: 'duel',
     lightWind: 0.55, heavyWind: 0.95, lightDmg: 9, heavyDmg: 20, heavyChance: 0.25, feintChance: 0, comboMax: 1,
-    blockChance: 0.22, parryChance: 0.05, dodgeChance: 0.08, aggression: 0.7, knife: false,
+    blockChance: 0.3, parryChance: 0.06, dodgeChance: 0.08, aggression: 0.85, knife: false,
     taunts: ['I don\'t want to do this.', 'Please. Yield.', 'Cassius will know.'],
   },
   jackal: {
-    chapter: 4, name: 'The Jackal', pal: PAL.jackal, hp: 150, speed: 215, arena: 'ridge', drone: 'jackal',
+    chapter: 4, name: 'The Jackal', pal: PAL.jackal, hp: 210, speed: 215, arena: 'ridge', drone: 'jackal',
     lightWind: 0.38, heavyWind: 0.8, lightDmg: 11, heavyDmg: 24, heavyChance: 0.25, feintChance: 0.28, comboMax: 3,
     blockChance: 0.35, parryChance: 0.12, dodgeChance: 0.12, aggression: 1.05, knife: true,
     taunts: ['You were never one of us.', 'Every man has a price.', 'Come, Reaper.'],
@@ -25,7 +25,7 @@ const P_LIGHT = { kind: 'light', wind: 0.12, act: 0.1, rec: 0.26, dmg: 11, range
 
 class Fighter {
   constructor(o) {
-    Object.assign(this, { x: 300, face: 1, hp: 100, st: 100, state: 'idle', t: 0, atk: null, hitDone: false, stunDur: 0, speed: 230, atkId: 0, flash: 0, blockT: 0, walkPh: 0, isPlayer: false }, o);
+    Object.assign(this, { x: 300, face: 1, hp: 100, st: 100, state: 'idle', t: 0, atk: null, hitDone: false, stunDur: 0, speed: 230, atkId: 0, flash: 0, blockT: 0, walkPh: 0, isPlayer: false, chain: 0, chainT: 0 }, o);
     this.maxHp = this.hp;
   }
   canAct() { return this.state === 'idle' || this.state === 'walk'; }
@@ -121,6 +121,7 @@ class DuelScene {
       E.state = 'throw'; E.t = 0;
       return;
     }
+    if (ai.counter) { ai.counter = false; if (d < 150) { E.startAttack({ kind: 'light', wind: 0.24, act: 0.1, rec: 0.34, dmg: cfg.lightDmg, range: 108 }); return; } }
     if (ai.combo > 0 && d < 140) { ai.combo--; E.startAttack(this.mkAtk('light', 0.7)); return; }
     ai.think -= dt;
     if (d > 110) { E.x += E.face * speed * dt; E.state = 'walk'; E.walkPh += dt * 10; }
@@ -143,6 +144,7 @@ class DuelScene {
 
   updateFighter(F, dt, O) {
     F.t += dt; F.flash = Math.max(0, F.flash - dt);
+    F.chainT -= dt; if (F.chainT <= 0) F.chain = 0;
     if (F.state !== 'block' && F.state !== 'dead') F.st = Math.min(100, F.st + dt * 26);
     switch (F.state) {
       case 'windup':
@@ -184,6 +186,7 @@ class DuelScene {
       def.st -= atk.dmg * 1.9; def.hp -= atk.dmg * 0.12;
       sfx.clang(); this.parts.burst(hx, hy, 10, ['#ffd27a', '#ffffff'], 220, 0.3, 2, 300);
       def.x -= def.face * 14;
+      if (!def.isPlayer) { this.ai.counter = true; def.blockT = Math.min(def.blockT, 0.12); }
       if (def.st <= 0) { def.st = 0; def.state = 'stagger'; def.t = 0; def.stunDur = 0.9; this.floats.add(def.x, FLOOR - 150, 'GUARD BROKEN', '#ff6a3a', 20); }
       this.checkDeath(def);
       return;
@@ -194,7 +197,12 @@ class DuelScene {
     this.parts.burst(hx, hy, 14, ['#b0141c', '#e02a2a', '#6a0a0e'], 220, 0.6, 3, 500);
     this.floats.add(def.x, FLOOR - 130, `-${Math.round(dmg)}`, def.isPlayer ? '#ff4a3a' : '#f1e4cc', 18);
     const poise = def.state === 'windup' && def.atk && def.atk.kind === 'heavy';
-    if (!poise && def.state !== 'stagger') { def.state = 'hit'; def.t = 0; def.stunDur = 0.26; }
+    if (!def.isPlayer && def.state !== 'stagger') { def.chain++; def.chainT = 1.1; }
+    if (!def.isPlayer && def.chain >= 3) {
+      // nobody stands still for a fourth blow: guard up, then counter
+      def.chain = 0; def.state = 'block'; def.t = 0; def.blockT = 0.55; this.ai.counter = true;
+      this.floats.add(def.x, FLOOR - 165, 'GUARD UP', '#c8d8ff', 16);
+    } else if (!poise && def.state !== 'stagger') { def.state = 'hit'; def.t = 0; def.stunDur = 0.26; }
     def.x += att.face * 20;
     this.checkDeath(def);
   }
@@ -203,7 +211,11 @@ class DuelScene {
     F.hp = 0; F.state = 'dead'; F.t = 0;
     this.slowT = 1.4; this.stT = 0;
     this.state = F.isPlayer ? 'lost' : 'won';
-    if (this.state === 'won') { sfx.fanfare(); if (this.cfg.knife) this.say('My hand...'); } else sfx.hurt();
+    if (this.state === 'won') {
+      sfx.fanfare();
+      this.rankIdx = Ranks.grade(this.P.hp / this.P.maxHp, [0.7, 0.45, 0.25, 0.1]);
+      this.newBest = Ranks.record(this.cfg.chapter, this.rankIdx);
+    } else sfx.hurt();
   }
 
   updateKnives(dt) {
@@ -385,7 +397,8 @@ class DuelScene {
       const sub = won ? `Parries: ${this.stats.parries}` : (this.cfg.knife ? 'The Jackal laughs. The Society endures.' : 'The Carver\'s work, wasted.');
       txt(title, W / 2, H / 2 - 10, { size: 52, weight: 800, align: 'center', color: won ? '#e0b552' : '#ff4a3a', glow: 'rgba(192,38,45,.8)' });
       txt(sub, W / 2, H / 2 + 30, { size: 20, font: FB, weight: 400, align: 'center' });
-      if (this.stT > 2.2) txt(won ? 'A / TAP  CONTINUE' : 'A / TAP  TRY AGAIN    ·    B  TITLE', W / 2, H / 2 + 86, { size: 16, font: FH, weight: 700, align: 'center', color: 'rgba(241,228,204,.7)' });
+      if (won) drawRank(W / 2 - 40, H / 2 + 76, this.rankIdx, 'RANK', this.newBest);
+      if (this.stT > 2.2) txt(won ? 'A / TAP  CONTINUE' : 'A / TAP  TRY AGAIN    ·    B  TITLE', W / 2, H / 2 + (won ? 124 : 86), { size: 16, font: FH, weight: 700, align: 'center', color: 'rgba(241,228,204,.7)' });
       ctx.globalAlpha = 1;
     }
   }

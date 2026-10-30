@@ -9,7 +9,7 @@ mkdir -p dist
   cat src/shell.html
   echo '<script>'
   echo '(() => {'
-  cat src/core.js src/story.js src/mine.js src/duel.js src/institute.js src/main.js
+  cat src/core.js src/story.js src/mine.js src/duel.js src/institute.js src/rain.js src/main.js
   echo '})();'
   echo '</script>'
 } > dist/break-the-chains.html

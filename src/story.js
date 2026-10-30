@@ -177,6 +177,19 @@ function drawBackdrop(kind, t) {
       }
       break;
     }
+    case 'space': {
+      bg('#020108', '#120408');
+      drawStars(t);
+      drawMars(W / 2 + 120, H + 520, 720, t * 0.2);
+      for (let i = 0; i < 7; i++) {
+        const x = 120 + i * 120 + Math.sin(t * 0.3 + i) * 10, y = 90 + (i % 3) * 50, s = 0.6 + (i % 2) * 0.5;
+        ctx.fillStyle = '#1c1218'; ctx.beginPath(); ctx.moveTo(x - 80 * s, y); ctx.lineTo(x + 90 * s, y - 10 * s); ctx.lineTo(x + 70 * s, y + 14 * s); ctx.lineTo(x - 70 * s, y + 12 * s); ctx.fill();
+        ctx.fillStyle = '#ff6a3a'; ctx.fillRect(x - 84 * s, y + 2, 5, 5);
+      }
+      ctx.fillStyle = 'rgba(255,200,140,.8)';
+      for (let i = 0; i < 40; i++) { const x = (i * 211) % W, y = ((i * 97 + t * 120) % (H + 100)) - 50; ctx.fillRect(x, y, 2, 7); }
+      break;
+    }
     case 'pyramid': bg('#0a0405', '#020101'); drawStars(t, 0.3); drawPyramid(t); break;
     case 'institute': {
       bg('#2b1636', '#d0723e');
@@ -225,6 +238,15 @@ const KEYS_DUEL = [
   ['Parry', 'Tap B just as a blow lands. Staggers the enemy; your next hits deal far more.'],
   ['Dodge', 'Up (W · Arrow Up · Stick up)'],
   ['Red glint', 'A heavy blow. It breaks any block. Parry it or dodge it.'],
+];
+const KEYS_RAIN = [
+  ['Steer', 'WASD · Arrows · Stick'],
+  ['Fire', 'A (hold). Shoots down ripWings and missiles below you.'],
+  ['Boost', 'B. A burst of thrust with a moment of invulnerability.'],
+  ['Flak', 'Red rings mark shells about to burst. Get out before they fill.'],
+  ['Your stick', 'Fly through falling soldiers (green rings) to gather them. They fire with you, and die if the flak finds them.'],
+  ['Repair cells', 'Blue pods restore 25% of your shell.'],
+  ['Landing', 'Near the ground, steer for the green ring.'],
 ];
 const KEYS_INST = [
   ['Move', 'WASD · Arrows · Stick'],
@@ -279,6 +301,16 @@ const CARDS = {
     { bg: 'snow', title: 'The Hand', text: 'The Jackal\'s hand lies in the snow. Darrow lets him live.' },
     { bg: 'institute', title: 'Primus', text: 'House Mars wins the Institute. Nero au Augustus, the man who murdered Eo, offers Darrow a place in his House as his lancer.\n\nDarrow accepts.' },
     { bg: 'pyramid', title: 'Break the Chains', text: 'He will rise until he stands among them. And then he will break the chains.' },
+  ],
+  rain: [
+    { bg: 'space', title: 'Years Later', text: 'The lancer became a legend, and the legend became a war. The Reaper of Mars no longer hides what he is. The Rising has begun.' },
+    { bg: 'space', title: 'The Fleet', text: 'Above Mars hangs the Rising\'s fleet: Reds and Obsidians, Blues and Greys, and the Golds who chose to stand with them. Thousands of soldiers wait in the drop tubes, sealed in starShells.' },
+    { bg: 'space', title: 'Iron Rain', text: 'When a legion falls from orbit onto a planet, they call it the Iron Rain. The Reaper falls first. He always does.' },
+    { bg: 'controls', title: 'Chapter V · Controls', keys: KEYS_RAIN },
+  ],
+  epilogue: [
+    { bg: 'mars', title: 'Mars', text: 'The Iron Rain falls on Mars, and where it lands the chains come apart.' },
+    { bg: 'eo', title: 'Eo', text: 'A girl in Lykos once sang a forbidden song about a valley where no one was a slave. Her husband carried it from the bottom of the mines to the sky.', onShow: () => AudioSys.lament() },
   ],
 };
 
@@ -337,6 +369,7 @@ const CHAPTERS = [
   { num: 'II', name: 'The Passage', where: 'The Institute' },
   { num: 'III', name: 'War of Houses', where: 'The Highlands' },
   { num: 'IV', name: 'The Jackal', where: 'Below Olympus' },
+  { num: 'V', name: 'Iron Rain', where: 'Sixty kilometers above Mars' },
 ];
 function chapterCard(n) {
   // big title card shown at the start of each playable chapter
@@ -359,19 +392,22 @@ function startChapter(n) {
   else if (n === 2) go(new StoryScene(CARDS.passage, () => go(new DuelScene(FOES.julian))));
   else if (n === 3) go(new StoryScene(CARDS.institute, () => go(new InstituteScene())));
   else if (n === 4) go(new StoryScene(CARDS.jackal, () => go(new DuelScene(FOES.jackal)), 'jackal'));
+  else if (n === 5) go(new StoryScene(CARDS.rain, () => go(new RainScene()), 'rain'));
 }
 function chapterWon(n, extra) {
   Save.unlock(n + 1);
   if (n === 1) go(new StoryScene(CARDS.mineWin(extra.he3, extra.gamma), () => startChapter(2)));
   else if (n === 2) startChapter(3);
   else if (n === 3) startChapter(4);
-  else go(new StoryScene(CARDS.ending, () => go(new CreditsScene()), 'jackal'));
+  else if (n === 4) go(new StoryScene(CARDS.ending, () => startChapter(5), 'jackal'));
+  else go(new StoryScene(CARDS.epilogue, () => go(new CreditsScene())));
 }
 
 // ------------------------------------------------------------------ title --
 class TitleScene {
   constructor() { this.t = 0; this.sel = 0; this.mode = 'main'; }
   enter() { AudioSys.drone('title'); setButtons('Select', 'Back'); }
+  rowY(i) { return this.mode === 'main' ? 300 + i * 44 : 288 + i * 39; }
   items() {
     if (this.mode === 'main') {
       const u = Save.get();
@@ -379,6 +415,7 @@ class TitleScene {
         { label: 'Begin the Rise', act: () => startChapter(1) },
         { label: 'Chapter Select', act: () => { this.mode = 'chapters'; this.sel = 0; }, off: u < 2 },
         { label: 'Sound: ' + (AudioSys.muted ? 'Off' : 'On'), act: () => AudioSys.setMuted(!AudioSys.muted) },
+        { label: 'Music: ' + (Music.on ? 'On' : 'Off'), act: () => Music.setOn(!Music.on) },
       ];
     }
     const u = Save.get();
@@ -391,7 +428,7 @@ class TitleScene {
     const step = (d) => { let s = this.sel; for (let k = 0; k < items.length; k++) { s = (s + d + items.length) % items.length; if (!items[s].off) break; } this.sel = s; sfx.blip(); };
     if (I.pressed('up')) step(-1);
     if (I.pressed('down')) step(1);
-    items.forEach((it, i) => { if (!it.off && I.inRect(70, 300 + i * 46 - 32, 420, 44)) { this.sel = i; sfx.select(); it.act(); } });
+    items.forEach((it, i) => { if (!it.off && I.inRect(70, this.rowY(i) - 32, 420, 44)) { this.sel = i; sfx.select(); it.act(); } });
     if (I.pressed('a') && !items[this.sel].off) { sfx.select(); items[this.sel].act(); }
     if (I.pressed('b') && this.mode !== 'main') { this.mode = 'main'; this.sel = 1; sfx.blip(); }
   }
@@ -412,13 +449,19 @@ class TitleScene {
     txt('From the mines of Lykos to the snows of Olympus.', 72, 248, { size: 17, font: FB, weight: 400, color: 'rgba(241,228,204,.7)' });
 
     this.items().forEach((it, i) => {
-      const y = 300 + i * 46, sel = i === this.sel;
+      const y = this.rowY(i), sel = i === this.sel;
       if (sel) {
-        ctx.fillStyle = 'rgba(192,38,45,.4)'; ctx.fillRect(70, y - 30, 420, 42);
-        ctx.fillStyle = '#e0b552'; ctx.fillRect(70, y - 30, 4, 42);
+        ctx.fillStyle = 'rgba(192,38,45,.4)'; ctx.fillRect(70, y - 29, 420, 38);
+        ctx.fillStyle = '#e0b552'; ctx.fillRect(70, y - 29, 4, 38);
       }
       txt(it.label, 92, y, { size: 24, color: it.off ? 'rgba(241,228,204,.25)' : sel ? '#f6eadb' : 'rgba(241,228,204,.7)' });
       if (it.off && this.mode === 'chapters') txt('locked', 470, y, { size: 15, font: FH, align: 'right', color: 'rgba(241,228,204,.3)' });
+      const best = this.mode === 'chapters' && i < CHAPTERS.length ? Ranks.best(i + 1) : null;
+      if (best !== null) {
+        const [name, col] = RANKS[best];
+        ctx.fillStyle = col; rr(392, y - 20, 84, 24, 3); ctx.fill();
+        txt(name.toUpperCase(), 434, y - 2, { size: 15, font: FH, weight: 700, align: 'center', color: best >= 3 ? '#f6eadb' : '#140806' });
+      }
     });
     txt('Unofficial fan project inspired by the novels of Pierce Brown.  M mutes  ·  Esc pauses', 72, H - 22, { size: 14, font: FH, weight: 500, color: 'rgba(241,228,204,.4)' });
   }
@@ -434,9 +477,9 @@ class CreditsScene {
     ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillRect(0, 0, W, H);
     const lines = [
       ['h', 'BREAK THE CHAINS'], ['s', 'A Red Rising fan game'], ['g', ''],
-      ['l', 'The Helldiver of Lykos'], ['l', 'The Passage'], ['l', 'The War of Houses'], ['l', 'The Jackal'], ['g', ''],
+      ['l', 'The Helldiver of Lykos'], ['l', 'The Passage'], ['l', 'The War of Houses'], ['l', 'The Jackal'], ['l', 'Iron Rain'], ['g', ''],
       ['s', 'Inspired by the Red Rising saga by Pierce Brown.'], ['s', 'All characters and the world belong to him.'], ['s', 'Unofficial and non-commercial.'], ['g', ''],
-      ['s', 'Code, art and sound generated in your browser.'], ['g', ''],
+      ['s', 'Code, art, music and sound generated in your browser.'], ['g', ''],
       ['h', 'HAIL, REAPER'],
     ];
     let y = H + 20 - this.t * 38;

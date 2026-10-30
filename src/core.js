@@ -177,6 +177,7 @@ const DRONES = {
   duel: { notes: [49, 73.4], type: 'sawtooth', cut: 420, vol: 0.06 },
   institute: { notes: [65.4, 98, 130.8], type: 'sawtooth', cut: 620, vol: 0.045 },
   jackal: { notes: [46.2, 69.3, 92.5], type: 'sawtooth', cut: 460, vol: 0.06 },
+  rain: { notes: [36.7, 55, 73.4], type: 'sawtooth', cut: 380, vol: 0.06 },
 };
 const AudioSys = {
   ctx: null, master: null, muted: false, droneNodes: null, want: null, drillG: null,
@@ -196,6 +197,7 @@ const AudioSys = {
     } catch (e) { this.ctx = null; }
   },
   setMuted(m) { this.muted = m; if (this.master) this.master.gain.value = m ? 0 : 0.55; },
+  // `delay` is seconds from now; the sequencer schedules ahead with it.
   tone(f, dur, type = 'square', vol = 0.12, slide = 0, delay = 0) {
     const c = this.ctx; if (!c) return;
     const t = c.currentTime + delay;
@@ -219,6 +221,7 @@ const AudioSys = {
     s.start(t, Math.random()); s.stop(t + dur + 0.05);
   },
   drone(name, force) {
+    Music.play(name);
     if (this.want === name && !force) return;
     this.want = name;
     const c = this.ctx; if (!c) return;
@@ -230,7 +233,7 @@ const AudioSys = {
     }
     const cfg = DRONES[name]; if (!cfg) return;
     const g = c.createGain(); g.gain.value = 0.0001;
-    g.gain.setTargetAtTime(cfg.vol, c.currentTime, 1.2);
+    g.gain.setTargetAtTime(cfg.vol * (Music.on ? 0.55 : 1), c.currentTime, 1.2);
     const f = c.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = cfg.cut;
     f.connect(g); g.connect(this.master);
     const oscs = cfg.notes.map((n, i) => {
@@ -342,7 +345,7 @@ function go(s) { if (fadeDir === 1) return; nextScene = s; fadeDir = 1; paused =
 function drawPause() {
   ctx.fillStyle = 'rgba(5,2,2,.78)'; ctx.fillRect(0, 0, W, H);
   txt('PAUSED', W / 2, 190, { size: 46, weight: 800, align: 'center', color: '#e0b552', glow: 'rgba(192,38,45,.8)' });
-  const items = ['Resume', 'Sound: ' + (AudioSys.muted ? 'Off' : 'On'), 'Quit to Title'];
+  const items = ['Resume', 'Sound: ' + (AudioSys.muted ? 'Off' : 'On'), 'Music: ' + (Music.on ? 'On' : 'Off'), 'Quit to Title'];
   items.forEach((s, i) => {
     const y = 270 + i * 50, sel = i === pauseSel;
     if (sel) { ctx.fillStyle = 'rgba(192,38,45,.35)'; ctx.fillRect(W / 2 - 160, y - 30, 320, 42); }
@@ -350,9 +353,9 @@ function drawPause() {
   });
 }
 function updatePause() {
-  if (I.pressed('up')) { pauseSel = (pauseSel + 2) % 3; sfx.blip(); }
-  if (I.pressed('down')) { pauseSel = (pauseSel + 1) % 3; sfx.blip(); }
-  for (let i = 0; i < 3; i++) if (I.inRect(W / 2 - 160, 240 + i * 50, 320, 42)) { pauseSel = i; doPause(i); return; }
+  if (I.pressed('up')) { pauseSel = (pauseSel + 3) % 4; sfx.blip(); }
+  if (I.pressed('down')) { pauseSel = (pauseSel + 1) % 4; sfx.blip(); }
+  for (let i = 0; i < 4; i++) if (I.inRect(W / 2 - 160, 240 + i * 50, 320, 42)) { pauseSel = i; doPause(i); return; }
   if (I.pressed('a')) doPause(pauseSel);
   if (I.pressed('pause') || I.pressed('b')) paused = false;
 }
@@ -360,6 +363,7 @@ function doPause(i) {
   sfx.select();
   if (i === 0) paused = false;
   else if (i === 1) AudioSys.setMuted(!AudioSys.muted);
+  else if (i === 2) Music.setOn(!Music.on);
   else { paused = false; AudioSys.drill(0); go(new TitleScene()); }
 }
 
@@ -386,4 +390,107 @@ function frame(now) {
   if (paused) drawPause();
   if (fade > 0) { ctx.fillStyle = `rgba(0,0,0,${fade})`; ctx.fillRect(0, 0, W, H); }
   requestAnimationFrame(frame);
+}
+
+// ------------------------------------------------------------------ music --
+// A tiny step sequencer. Songs are original; each sits in the key of its scene's drone.
+const NOTE_IDX = { C: 0, 'C#': 1, D: 2, 'D#': 3, E: 4, F: 5, 'F#': 6, G: 7, 'G#': 8, A: 9, 'A#': 10, B: 11 };
+function n2f(n) { const m = n.match(/^([A-G]#?)(\d)$/); return 440 * Math.pow(2, (NOTE_IDX[m[1]] + (+m[2] + 1) * 12 - 69) / 12); }
+function pat(str) { return str.trim().split(/\s+/).map((t) => (t === '.' ? null : t)); }
+const INSTR = {
+  bass: (f, t, d, v) => { AudioSys.tone(f, d, 'sawtooth', 0.07 * v, 0, t); AudioSys.tone(f / 2, d, 'sine', 0.06 * v, 0, t); },
+  pluck: (f, t, d, v) => AudioSys.tone(f, Math.min(d, 0.35), 'triangle', 0.06 * v, 0, t),
+  lead: (f, t, d, v) => { AudioSys.tone(f, d, 'square', 0.028 * v, 0, t); AudioSys.tone(f * 1.003, d, 'triangle', 0.04 * v, 0, t); },
+  horn: (f, t, d, v) => { AudioSys.tone(f, d, 'sawtooth', 0.03 * v, 0, t); AudioSys.tone(f / 2, d, 'triangle', 0.04 * v, 0, t); },
+  pad: (f, t, d, v) => { AudioSys.tone(f, d, 'sine', 0.035 * v, 0, t); AudioSys.tone(f * 1.5, d, 'sine', 0.018 * v, 0, t); },
+  kick: (f, t, d, v) => AudioSys.tone(110, 0.22, 'sine', 0.22 * v, 0.3, t),
+  tom: (f, t, d, v) => AudioSys.tone(f || 90, 0.3, 'sine', 0.16 * v, 0.55, t),
+  snare: (f, t, d, v) => AudioSys.noise(0.12, 0.09 * v, 2400, 'bandpass', 0.9, t),
+  hat: (f, t, d, v) => AudioSys.noise(0.035, 0.035 * v, 8000, 'highpass', 0.7, t),
+  clank: (f, t, d, v) => { AudioSys.tone(f || 1800, 0.08, 'square', 0.025 * v, 0.9, t); AudioSys.noise(0.04, 0.04 * v, 5000, 'highpass', 1, t); },
+};
+const SONGS = {
+  title: { bpm: 72, tracks: [
+    ['pad', pat('A2:16 . . . . . . . . . . . . . . . F2:16 . . . . . . . . . . . . . . . C3:16 . . . . . . . . . . . . . . . G2:16 . . . . . . . . . . . . . . .')],
+    ['pluck', pat('A3 . E4 . A4 . C5 . B4 . A4 . E4 . . . F3 . C4 . F4 . A4 . G4 . F4 . C4 . . . C4 . G4 . C5 . E5 . D5 . C5 . G4 . . . G3 . D4 . G4 . B4 . A4 . G4 . D4 . . .')],
+    ['lead', pat('. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . E5:6 . . . . . D5:2 . C5:4 . . . B4:4 . . . A4:12 . . . . . . . . . . . . . . . .')],
+  ] },
+  story: { bpm: 60, tracks: [
+    ['pad', pat('D3:16 . . . . . . . . . . . . . . . A2:16 . . . . . . . . . . . . . . . A#2:16 . . . . . . . . . . . . . . . F2:16 . . . . . . . . . . . . . . .')],
+    ['pluck', pat('D4 . . . F4 . . . A4 . . . F4 . . . C#4 . . . E4 . . . A4 . . . E4 . . . D4 . . . F4 . . . A#4 . . . F4 . . . C4 . . . F4 . . . A4 . . . C5 . . .')],
+  ] },
+  mine: { bpm: 96, tracks: [
+    ['kick', pat('x . . . . . . . x . . x . . . . x . . . . . . . x . . . . . x .')],
+    ['hat', pat('. . x . . . x . . . x . . . x . . . x . . . x . . . x . . . x x')],
+    ['clank', pat('. . . . x . . . . . . . . . . . . . . . x . . . . . . . . . . .')],
+    ['bass', pat('E2:2 . E2 . G2:2 . E2 . . . E2 . A#1:3 . . . E2:2 . E2 . G2:2 . E2 . . . D2:2 . B1:3 . . .')],
+  ] },
+  duel: { bpm: 120, tracks: [
+    ['tom', pat('x . . x . . x . x . . . x . x . x . . x . . x . x . . . x x x x')],
+    ['bass', pat('G1:2 . . G1 . . G1 . G#1:2 . . . G1:4 . . . G1:2 . . G1 . . G1 . D2:2 . . . C#2:4 . . .')],
+    ['lead', pat('. . . . . . . . . . . . . . . . G4:4 . . . G#4:4 . . . G4:3 . . D4:5 . . . .')],
+  ] },
+  institute: { bpm: 104, tracks: [
+    ['snare', pat('x . . . x . x x x . . . x . x . x . . . x . x x x . x . x x x x')],
+    ['kick', pat('x . . . . . . . x . . . . . . . x . . . . . . . x . . . . . . .')],
+    ['bass', pat('C2:4 . . . C2:4 . . . A#1:4 . . . G1:4 . . . C2:4 . . . C2:4 . . . F1:4 . . . G1:4 . . .')],
+    ['horn', pat('C4:6 . . . . . D#4:2 . F4:8 . . . . . . . G4:4 . . . F4:2 . D#4:2 . D4:4 . . . C4:4 . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .')],
+  ] },
+  jackal: { bpm: 132, tracks: [
+    ['kick', pat('x . . x . . x . x . . x . . x .')],
+    ['snare', pat('. . . . x . . . . . . . x . . x')],
+    ['hat', pat('x x . x x x . x x x . x x x x x')],
+    ['bass', pat('F#1:2 . F#2 . F#1 . C#2 . F#1:2 . E2 . F#1 . D2 . F#1:2 . F#2 . F#1 . C#2 . G1:2 . F#1:2 . E1:2 . . .')],
+    ['lead', pat('. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . F#4:3 . . A4:3 . . G#4:2 . F#4:6 . . . . . C#5:3 . . B4:3 . . A4:2 . G#4:6 . . . . .')],
+  ] },
+  rain: { bpm: 140, tracks: [
+    ['kick', pat('x . . . x . . . x . . . x . . .')],
+    ['snare', pat('. . . . x . . . . . . . x . . .')],
+    ['hat', pat('. . x . . . x . . . x . . . x x')],
+    ['bass', pat('D2 D2 D3 D2 D2 D3 D2 D2 A#1 A#1 A#2 A#1 A#1 A#2 A#1 A#1 F1 F1 F2 F1 F1 F2 F1 F1 C2 C2 C3 C2 C2 C3 E2 E2')],
+    ['lead', pat('D4:4 . . . F4:4 . . . A4:6 . . . . . G4:2 . F4:4 . . . D4:4 . . . C4:8 . . . . . . . D4:4 . . . F4:4 . . . A4:4 . . . C5:4 . . . D5:12 . . . . . . . . . . . E5:2 . F5:2 .')],
+  ] },
+};
+const Music = {
+  on: true, cur: null, step: 0, nextT: 0, timer: null,
+  play(name) {
+    if (this.cur === name) return;
+    this.cur = name; this.step = 0; this.nextT = 0;
+    if (!this.timer) this.timer = setInterval(() => this.tick(), 40);
+  },
+  setOn(v) { this.on = v; try { localStorage.setItem('btc_music', v ? '1' : '0'); } catch (e) {} },
+  tick() {
+    const c = AudioSys.ctx, S = SONGS[this.cur];
+    if (!c || !S || !this.on || AudioSys.muted || document.hidden) { if (c) this.nextT = c.currentTime + 0.05; return; }
+    const spb = 60 / S.bpm / 4;
+    if (this.nextT < c.currentTime) this.nextT = c.currentTime + 0.05;
+    while (this.nextT < c.currentTime + 0.18) {
+      for (const [inst, steps] of S.tracks) {
+        const ev = steps[this.step % steps.length];
+        if (!ev) continue;
+        const [note, len] = ev.split(':');
+        const f = /^[A-G]/.test(note) ? n2f(note) : 0;
+        INSTR[inst](f, this.nextT - c.currentTime, (+len || 1) * spb * 0.95, note === 'X' ? 1.4 : 1);
+      }
+      this.nextT += spb; this.step++;
+    }
+  },
+};
+try { if (localStorage.getItem('btc_music') === '0') Music.on = false; } catch (e) {}
+
+// ------------------------------------------------------------------ ranks --
+// Grades use the Society's own Colors, best first.
+const RANKS = [['Gold', '#e0b552'], ['Silver', '#c9ccd2'], ['Copper', '#b8733d'], ['Grey', '#8a8a8a'], ['Red', '#c0262d']];
+const Ranks = {
+  mem: {},
+  best(ch) { let v = this.mem[ch]; try { const s = localStorage.getItem('btc_rank_' + ch); if (s !== null) v = Math.min(v ?? 9, +s); } catch (e) {} return v ?? null; },
+  record(ch, r) { const b = this.best(ch); const isBest = b === null || r < b; if (isBest) { this.mem[ch] = r; try { localStorage.setItem('btc_rank_' + ch, r); } catch (e) {} } return isBest; },
+  grade(value, cuts) { for (let i = 0; i < cuts.length; i++) if (value >= cuts[i]) return i; return 4; },
+};
+function drawRank(x, y, r, label = 'RANK', newBest = false) {
+  const [name, col] = RANKS[r];
+  txt(label, x - 8, y, { size: 16, font: FH, weight: 700, align: 'right', color: 'rgba(241,228,204,.7)' });
+  ctx.fillStyle = col; rr(x, y - 22, 120, 30, 4); ctx.fill();
+  txt(name.toUpperCase(), x + 60, y - 1, { size: 20, weight: 800, align: 'center', color: r === 4 || r === 3 ? '#f6eadb' : '#140806' });
+  if (newBest) txt('NEW BEST', x + 130, y, { size: 14, font: FH, weight: 700, color: '#e0b552' });
 }

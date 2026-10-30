@@ -220,7 +220,7 @@ class InstituteScene {
     this.shake = Math.max(0, this.shake - dt * 30);
     if (this.banners.length) { this.banners[0].t -= dt; if (this.banners[0].t <= 0) this.banners.shift(); }
     for (const s of this.snow) { s.y += s.v * dt; s.x += Math.sin(this.time + s.v) * 12 * dt; if (s.y > H) { s.y = -4; s.x = rand(0, W); } }
-    if (this.state === 'won') { this.updateCam(dt); if (this.stT > 3.5) chapterWon(3); return; }
+    if (this.state === 'won') { this.updateCam(dt); if (this.stT > 2 && (I.pressed('a') || I.tap())) chapterWon(3); return; }
     if (this.state === 'dead') {
       this.deadT -= dt; this.updateCam(dt);
       if (this.deadT <= 0) this.respawn();
@@ -288,7 +288,7 @@ class InstituteScene {
     if (u.hp <= 0) this.kill(u);
   }
   kill(u) {
-    if (u === this.player) { this.state = 'dead'; this.deadT = 3; u.hp = 0; sfx.hurt(); return; }
+    if (u === this.player) { this.state = 'dead'; this.deadT = 3; u.hp = 0; this.deaths = (this.deaths || 0) + 1; sfx.hurt(); return; }
     if (u.kind === 'boss') {
       u.hp = 0; u.yielded = true; u.team = 'neutral'; u.z = 0; sfx.horn(); this.shake = 14;
       this.banner('APOLLO YIELDS', 'The Proctor kneels. Take the standard of Olympus.');
@@ -465,7 +465,12 @@ class InstituteScene {
     c.owner = 'mars'; c.prog = 0;
     sfx.fanfare(); this.shake = 8;
     this.parts.burst(c.x, c.y, 50, ['#c0262d', '#e0b552', '#ffffff'], 260, 1.0, 4);
-    if (c.id === 'olympus') { this.state = 'won'; this.stT = 0; this.banner('OLYMPUS FALLS', 'House Mars has taken the Institute.'); return; }
+    if (c.id === 'olympus') {
+      this.state = 'won'; this.stT = 0; this.banner('OLYMPUS FALLS', 'House Mars has taken the Institute.');
+      const score = this.time + (this.deaths || 0) * 60;
+      this.rankIdx = Ranks.grade(-score, [-420, -600, -780, -1000]); this.newBest = Ranks.record(3, this.rankIdx);
+      return;
+    }
     let freed = 0;
     const squadCount = () => this.units.filter((u) => u.role === 'squad' && u.alive).length;
     for (const u of this.units) {
@@ -638,6 +643,13 @@ class InstituteScene {
       txt(b.title, W / 2, 132, { size: 30, weight: 800, align: 'center', color: '#e0b552', glow: 'rgba(192,38,45,.8)' });
       txt(b.sub, W / 2, 158, { size: 17, font: FB, weight: 400, align: 'center' });
       ctx.globalAlpha = 1;
+    }
+    if (this.state === 'won' && this.stT > 1) {
+      ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillRect(0, H / 2 - 60, W, 170);
+      const m = Math.floor(this.time / 60), s = Math.floor(this.time % 60);
+      txt(`The Institute taken in ${m}:${String(s).padStart(2, '0')}  ·  fell ${this.deaths || 0} time${this.deaths === 1 ? '' : 's'}`, W / 2, H / 2 - 20, { size: 20, font: FB, align: 'center' });
+      drawRank(W / 2 - 40, H / 2 + 30, this.rankIdx, 'RANK', this.newBest);
+      if (this.stT > 2) txt('A / TAP  CONTINUE', W / 2, H / 2 + 80, { size: 16, font: FH, weight: 700, align: 'center', color: 'rgba(241,228,204,.7)' });
     }
     if (this.state === 'dead') {
       ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(0, 0, W, H);

@@ -1,6 +1,6 @@
 # Break the Chains
 
-An unofficial, non-commercial fan game inspired by Pierce Brown's *Red Rising*. It follows Darrow from the mines of Lykos to the snows below Olympus, in four chapters that each play differently.
+An unofficial, non-commercial fan game inspired by Pierce Brown's *Red Rising*. It follows Darrow from the mines of Lykos to the snows below Olympus, in five chapters that each play differently.
 
 **Play:** open `index.html` in any modern browser (desktop or phone, landscape). No install, no build step needed to play.
 
@@ -12,6 +12,11 @@ An unofficial, non-commercial fan game inspired by Pierce Brown's *Red Rising*. 
 | II | **The Passage** | A one-on-one duel with Julian au Bellona. Strike, block, parry (tap block as the blow lands), dodge, and watch for red glints: heavy blows that break blocks. |
 | III | **War of Houses** | Top-down conquest of the Institute highlands with Sevro, Pax, Quinn and Roque at your back. Take the castles of Ceres, Minerva, Diana and Jupiter by clearing defenders and holding their standard. Captured students are freed and join you. Winter falls. Then storm Olympus and beat Proctor Apollo. |
 | IV | **The Jackal** | A harder duel on the frozen ridge. The Jackal feints, throws knives (parry them back), and gets faster when wounded. |
+| V | **Iron Rain** | Years later, from *Morning Star*: free-fall from orbit in a starShell. Dodge flak and debris, shoot down ripWings and missiles, gather falling soldiers into your stick, grab repair cells, and steer for the drop zone. |
+
+Every chapter grades you on the Society's own Color scale (Gold, Silver, Copper, Grey, Red). Your best rank shows on Chapter Select.
+
+Each chapter has its own original soundtrack, played by a small step sequencer in the browser (toggle in the title or pause menu).
 
 Story cards between chapters cover Eo, the Laurel, the Sons of Ares, the Color hierarchy, the Carving and the Institute.
 
@@ -27,6 +32,10 @@ Story cards between chapters cover Eo, the Laurel, the Sons of Ares, the Color h
 | Mute | M | Pause menu |
 
 Progress (unlocked chapters) is saved in your browser.
+
+## Balance testing
+
+`tools/` holds Playwright scripts that drive the real game with bots: `duelbot.js` fights both duels at three skill levels, `minebot.js` runs a pathfinding Helldiver, `rainbot.js` dives the Iron Rain, and `smoke.js` visits every scene and checks for errors. Run them with `node tools/duelbot.js` (needs `playwright` installed). Current targets: a sloppy duelist beats the Jackal about 40% of the time and a good one always does; an all-seeing mine bot hauls ~300 kg against Gamma's ~100.
 
 ## Building
 

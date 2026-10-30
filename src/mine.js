@@ -53,7 +53,7 @@ class MineScene {
       let r = Math.floor(9 + Math.pow(Math.random(), 0.75) * (R - 26)), c = randi(2, C - 3);
       const len = Math.floor(3 + (r / R) * 8 + Math.random() * 4);
       for (let s = 0; s < len; s++) {
-        if (g[r * C + c] !== MT.BED) { g[r * C + c] = MT.VEIN; this.rich[r * C + c] = 1 + Math.floor((r / R) * 2.5); }
+        if (g[r * C + c] !== MT.BED) { g[r * C + c] = MT.VEIN; this.rich[r * C + c] = r / R > 0.55 ? 2 : 1; }
         if (Math.random() < 0.65) c += Math.random() < 0.5 ? -1 : 1; else r += Math.random() < 0.5 ? -1 : 1;
         c = clamp(c, 1, C - 2); r = clamp(r, 5, R - 2);
       }
@@ -64,7 +64,7 @@ class MineScene {
     for (let r = mr - 7; r <= mr + 7; r++) for (let c = mc - 8; c <= mc + 8; c++) {
       if (c < 1 || c > C - 2 || r < 5 || r > R - 2) continue;
       const d = Math.hypot((c - mc) / 1.4, r - mr);
-      if (d < 3.1) { g[r * C + c] = MT.VEIN; this.rich[r * C + c] = 4; }
+      if (d < 3.1) { g[r * C + c] = MT.VEIN; this.rich[r * C + c] = 3; }
       else if (d < 5.2) g[r * C + c] = Math.random() < 0.42 ? MT.GAS : MT.BASALT;
     }
     // hidden gas pockets, thicker with depth and around veins
@@ -126,6 +126,7 @@ class MineScene {
   }
   end(state) {
     this.state = state; this.stT = 0; AudioSys.drill(0);
+    if (state === 'won') { const gamma = Math.floor(this.rivals[0].v); this.rankIdx = Ranks.grade(this.he3, [160, 120, gamma + 1, 80]); this.newBest = Ranks.record(1, this.rankIdx); }
     if (state === 'won') sfx.fanfare(); else sfx.hurt();
   }
   updateCam(dt) {
@@ -183,7 +184,7 @@ class MineScene {
     if (t === MT.VEIN) {
       const amt = this.yieldAt(x, y);
       this.he3 += amt; sfx.gem();
-      this.floats.add(cx, cy - 8, `+${amt} kg`, amt >= 4 ? '#e0b552' : '#7fd8ff', amt >= 4 ? 20 : 16);
+      this.floats.add(cx, cy - 8, `+${amt} kg`, amt >= 3 ? '#e0b552' : '#7fd8ff', amt >= 3 ? 20 : 16);
       this.parts.burst(cx, cy, 14, ['#7fd8ff', '#c8f2ff', '#ffffff'], 140, 0.6, 3, 0, 2);
     } else if (t === MT.GAS) {
       if (careful) {
@@ -320,7 +321,7 @@ class MineScene {
       ctx.fillStyle = 'rgba(255,220,180,.05)'; ctx.fillRect(x, y, T, 2);
       if (t === MT.VEIN) {
         const rich = this.rich[i];
-        ctx.fillStyle = rich >= 4 ? '#ffd27a' : '#7fd8ff';
+        ctx.fillStyle = rich >= 3 ? '#ffd27a' : '#7fd8ff';
         for (let k = 0; k < 3; k++) {
           const ox = x + 4 + ((s * 13 + k * 7) % 16), oy = y + 4 + ((s * 29 + k * 5) % 16);
           ctx.beginPath(); ctx.moveTo(ox, oy - 4); ctx.lineTo(ox + 3, oy); ctx.lineTo(ox, oy + 4); ctx.lineTo(ox - 3, oy); ctx.fill();
@@ -364,7 +365,7 @@ class MineScene {
         const i = r * this.cols + c; if (this.g[i] !== MT.VEIN) continue;
         const x = c * T + T / 2 + sx, y = r * T + T / 2 - cam + sy;
         if (Math.hypot(x - px, y - py) > pr) continue;
-        ctx.fillStyle = this.rich[i] >= 4 ? `rgba(255,210,122,${0.55 * fadeA})` : `rgba(127,216,255,${0.45 * fadeA})`;
+        ctx.fillStyle = this.rich[i] >= 3 ? `rgba(255,210,122,${0.55 * fadeA})` : `rgba(127,216,255,${0.45 * fadeA})`;
         ctx.fillRect(x - 7, y - 7, 14, 14);
       }
       ctx.restore();
@@ -470,6 +471,7 @@ class MineScene {
     else { title = 'THE DRILL IS LOST'; sub = 'Lykos buries another Helldiver.'; prompt = 'A / TAP  TRY AGAIN    ·    B  TITLE'; }
     txt(title, W / 2, H / 2 - 20, { size: 52, weight: 800, align: 'center', color: this.state === 'won' ? '#e0b552' : '#ff4a3a', glow: 'rgba(192,38,45,.8)' });
     txt(sub, W / 2, H / 2 + 24, { size: 20, font: FB, weight: 400, align: 'center' });
-    if (this.stT > 1.2) txt(prompt, W / 2, H / 2 + 80, { size: 16, font: FH, weight: 700, align: 'center', color: 'rgba(241,228,204,.7)' });
+    if (this.state === 'won') drawRank(W / 2 - 40, H / 2 + 72, this.rankIdx, 'RANK', this.newBest);
+    if (this.stT > 1.2) txt(prompt, W / 2, H / 2 + (this.state === 'won' ? 124 : 80), { size: 16, font: FH, weight: 700, align: 'center', color: 'rgba(241,228,204,.7)' });
   }
 }
