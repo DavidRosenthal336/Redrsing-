@@ -410,16 +410,14 @@ class TitleScene {
   rowY(i) { return this.mode === 'main' ? 300 + i * 44 : 288 + i * 39; }
   items() {
     if (this.mode === 'main') {
-      const u = Save.get();
       return [
         { label: 'Begin the Rise', act: () => startChapter(1) },
-        { label: 'Chapter Select', act: () => { this.mode = 'chapters'; this.sel = 0; }, off: u < 2 },
+        { label: 'Chapter Select', act: () => { this.mode = 'chapters'; this.sel = 0; } },
         { label: 'Sound: ' + (AudioSys.muted ? 'Off' : 'On'), act: () => AudioSys.setMuted(!AudioSys.muted) },
         { label: 'Music: ' + (Music.on ? 'On' : 'Off'), act: () => Music.setOn(!Music.on) },
       ];
     }
-    const u = Save.get();
-    return CHAPTERS.map((c, i) => ({ label: `${c.num}.  ${c.name}`, off: i + 1 > u, act: () => startChapter(i + 1) }))
+    return CHAPTERS.map((c, i) => ({ label: `${c.num}.  ${c.name}`, act: () => startChapter(i + 1) }))
       .concat([{ label: 'Back', act: () => { this.mode = 'main'; this.sel = 1; } }]);
   }
   update(dt) {
