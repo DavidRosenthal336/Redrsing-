@@ -1,0 +1,127 @@
+<title>Iron Rain</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;800;900&family=Barlow+Condensed:wght@500;600;700&family=Spectral:ital,wght@0,400;1,400&display=swap">
+<style>
+/* One committed look: a dark launch bay lit by Mars. WebGL does the art; DOM carries type. */
+:root{--void:#050303;--ink:#f1e4cc;--blood:#c0262d;--gold:#e0b552;--hud:#ffb27a;--dim:rgba(241,228,204,.55);color-scheme:dark}
+html,body{height:100%;margin:0;background:var(--void);color:var(--ink);overflow:hidden;overscroll-behavior:none}
+body{touch-action:none;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;font-family:"Barlow Condensed","Arial Narrow",sans-serif}
+#gl{position:fixed;inset:0;width:100%;height:100%;display:block;outline:none}
+.layer{position:fixed;inset:0;pointer-events:none}
+[hidden]{display:none!important}
+#objective,#prompt,#subtitle,#crosshair,#dialogue,#podtag{inset:auto}
+
+/* title */
+#title{display:flex;flex-direction:column;justify-content:center;padding-left:max(8vw,env(safe-area-inset-left,0px));pointer-events:auto;background:radial-gradient(ellipse at 80% 60%,rgba(0,0,0,0) 0%,rgba(0,0,0,.55) 60%,rgba(0,0,0,.85) 100%)}
+#title .eyebrow{font-weight:700;letter-spacing:.32em;font-size:clamp(11px,1.4vw,15px);color:var(--blood);text-transform:uppercase}
+#title h1{font-family:Cinzel,Georgia,serif;font-weight:900;font-size:clamp(54px,11vw,150px);line-height:.88;margin:.12em 0 .1em;color:var(--gold);letter-spacing:.02em;text-shadow:0 0 40px rgba(192,38,45,.65),0 0 2px rgba(0,0,0,.8)}
+#title p{font-family:Spectral,Georgia,serif;font-style:italic;font-size:clamp(15px,1.9vw,21px);max-width:34ch;color:var(--dim);margin:0 0 1.6em}
+#title button{pointer-events:auto;font:700 clamp(16px,2vw,20px) "Barlow Condensed",sans-serif;letter-spacing:.24em;text-transform:uppercase;color:var(--ink);background:rgba(192,38,45,.75);border:1px solid rgba(224,181,82,.6);padding:.85em 2.2em;cursor:pointer;width:max-content}
+#title button:hover,#title button:focus-visible{background:var(--blood);outline:2px solid var(--gold);outline-offset:3px}
+#title small{margin-top:2.2em;font-size:13px;letter-spacing:.06em;color:rgba(241,228,204,.38);max-width:60ch}
+#loadbar{width:min(320px,60vw);height:2px;background:rgba(241,228,204,.15);margin-bottom:1.4em}
+#loadbar i{display:block;height:100%;width:0;background:var(--gold);transition:width .2s}
+
+/* objective + prompts */
+#objective{top:calc(18px + env(safe-area-inset-top,0px));left:max(20px,env(safe-area-inset-left,0px));font-weight:700;letter-spacing:.18em;text-transform:uppercase;font-size:14px;color:var(--gold);text-shadow:0 1px 3px #000}
+#objective span{display:block;font-weight:500;letter-spacing:.04em;text-transform:none;font-size:18px;color:var(--ink)}
+#prompt{left:50%;bottom:22%;transform:translateX(-50%);font-weight:700;letter-spacing:.2em;text-transform:uppercase;font-size:15px;padding:.5em 1.1em;border:1px solid rgba(224,181,82,.5);background:rgba(0,0,0,.45)}
+#crosshair{left:50%;top:50%;width:4px;height:4px;margin:-2px 0 0 -2px;border-radius:50%;background:rgba(241,228,204,.7)}
+#subtitle{left:50%;bottom:9%;transform:translateX(-50%);font-family:Spectral,Georgia,serif;font-size:clamp(16px,2.1vw,22px);text-align:center;text-shadow:0 2px 6px #000;max-width:80vw}
+
+/* dialogue */
+#dialogue{left:50%;bottom:max(5%,env(safe-area-inset-bottom,0px));transform:translateX(-50%);width:min(760px,88vw);background:linear-gradient(180deg,rgba(10,4,4,.86),rgba(10,4,4,.94));border-top:2px solid var(--blood);padding:18px 24px 20px;pointer-events:auto}
+#dialogue .who{font-family:Cinzel,Georgia,serif;font-weight:800;font-size:18px;color:var(--gold);letter-spacing:.08em;margin-bottom:6px}
+#dialogue .who em{font-family:"Barlow Condensed",sans-serif;font-style:normal;font-weight:600;font-size:13px;color:var(--dim);letter-spacing:.16em;margin-left:10px;text-transform:uppercase}
+#dialogue .line{font-family:Spectral,Georgia,serif;font-size:clamp(17px,2vw,21px);line-height:1.45;min-height:2.9em}
+#dialogue .next{position:absolute;right:18px;bottom:10px;font-size:12px;letter-spacing:.2em;color:var(--dim)}
+
+/* helmet visor */
+#visor{background:radial-gradient(ellipse 72% 66% at 50% 50%,rgba(0,0,0,0) 62%,rgba(20,4,2,.75) 80%,#000 100%)}
+#visor .rim{position:absolute;inset:3vh 3vw;border:1px solid rgba(255,140,90,.25);border-radius:44% 44% 38% 38%/52% 52% 40% 40%}
+#visor .read{position:absolute;font-weight:600;letter-spacing:.14em;font-size:13px;color:var(--hud);text-shadow:0 0 8px rgba(255,120,60,.8)}
+#count{position:absolute;left:50%;top:44%;transform:translate(-50%,-50%);font-family:Cinzel,serif;font-weight:900;font-size:clamp(60px,12vw,140px);color:var(--hud);text-shadow:0 0 30px rgba(255,90,40,.9)}
+
+/* fall HUD */
+#hud .panel{position:absolute;background:rgba(8,3,3,.55);border:1px solid rgba(255,160,110,.25);padding:10px 14px}
+#hud .lab{font-weight:700;letter-spacing:.2em;font-size:12px;color:var(--hud)}
+#hud .big{font-weight:700;font-size:30px;font-variant-numeric:tabular-nums;letter-spacing:.04em}
+#hud .bar{height:6px;background:rgba(255,255,255,.12);margin-top:6px}
+#hud .bar i{display:block;height:100%;background:var(--ink)}
+#hp{top:calc(16px + env(safe-area-inset-top,0px));left:max(16px,env(safe-area-inset-left,0px));width:220px}
+#alt{top:calc(16px + env(safe-area-inset-top,0px));right:max(16px,env(safe-area-inset-right,0px));text-align:right;min-width:150px}
+#phase{position:absolute;top:calc(20px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);font-weight:700;letter-spacing:.3em;font-size:13px;color:var(--hud);text-shadow:0 0 8px rgba(0,0,0,.9)}
+#warn{position:absolute;top:22%;left:50%;transform:translateX(-50%);font-weight:700;letter-spacing:.3em;font-size:18px;color:#ff4a3a;text-shadow:0 0 12px rgba(255,40,20,.9)}
+#target{position:absolute;width:44px;height:44px;margin:-22px 0 0 -22px;border:2px solid #9dff9a;border-radius:50%;box-shadow:0 0 14px rgba(157,255,154,.7)}
+#target b{position:absolute;top:48px;left:50%;transform:translateX(-50%);white-space:nowrap;font-size:12px;letter-spacing:.2em;color:#9dff9a}
+#podtag{position:absolute;font-weight:700;letter-spacing:.24em;font-size:13px;color:var(--gold);transform:translate(-50%,-140%);text-shadow:0 0 6px #000;white-space:nowrap}
+#podtag:before{content:"";position:absolute;left:50%;top:120%;width:1px;height:22px;background:var(--gold)}
+
+/* end card */
+#end{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;pointer-events:auto;background:radial-gradient(ellipse at 50% 55%,rgba(0,0,0,.15),rgba(0,0,0,.8))}
+#end h2{font-family:Cinzel,Georgia,serif;font-weight:900;font-size:clamp(46px,9vw,120px);margin:0;color:var(--gold);text-shadow:0 0 40px rgba(192,38,45,.7)}
+#end p{font-family:Spectral,Georgia,serif;font-size:clamp(16px,2vw,21px);color:var(--dim);margin:.4em 0 1.4em;max-width:46ch;padding:0 16px}
+#end .stats{display:flex;gap:28px;margin-bottom:1.6em;flex-wrap:wrap;justify-content:center}
+#end .stats div{font-size:13px;letter-spacing:.2em;color:var(--dim)}
+#end .stats b{display:block;font-size:28px;color:var(--ink);letter-spacing:.04em}
+#end button{font:700 18px "Barlow Condensed",sans-serif;letter-spacing:.24em;text-transform:uppercase;color:var(--ink);background:rgba(192,38,45,.75);border:1px solid rgba(224,181,82,.6);padding:.8em 2em;cursor:pointer}
+#end button:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
+
+#skip{top:calc(16px + env(safe-area-inset-top,0px));right:max(16px,env(safe-area-inset-right,0px));pointer-events:auto;font:700 13px "Barlow Condensed",sans-serif;letter-spacing:.22em;color:var(--dim);background:rgba(0,0,0,.4);border:1px solid rgba(241,228,204,.2);padding:.5em 1em;cursor:pointer;position:fixed;inset:auto}
+#letterbox:before,#letterbox:after{content:"";position:absolute;left:0;right:0;height:11vh;background:#000;transition:transform .8s}
+#letterbox:before{top:0}#letterbox:after{bottom:0}
+#letterbox.off:before{transform:translateY(-100%)}#letterbox.off:after{transform:translateY(100%)}
+
+/* touch */
+.tc{position:fixed;display:none;z-index:5;pointer-events:auto}
+body.touch .tc.on{display:block}
+#stick{left:calc(22px + env(safe-area-inset-left,0px));bottom:calc(22px + env(safe-area-inset-bottom,0px));width:130px;height:130px;border-radius:50%;border:2px solid rgba(241,228,204,.25);background:rgba(0,0,0,.25)}
+#knob{position:absolute;left:50%;top:50%;width:56px;height:56px;margin:-28px 0 0 -28px;border-radius:50%;background:rgba(192,38,45,.6);border:2px solid rgba(224,181,82,.7)}
+.btn{width:78px;height:78px;border-radius:50%;border:2px solid rgba(241,228,204,.25);color:var(--ink);font:700 14px "Barlow Condensed",sans-serif;letter-spacing:.08em;text-transform:uppercase;display:flex!important;align-items:center;justify-content:center}
+body:not(.touch) .btn{display:none!important}
+.btn:not(.on){display:none!important}
+#btnA{right:calc(24px + env(safe-area-inset-right,0px));bottom:calc(70px + env(safe-area-inset-bottom,0px));background:rgba(192,38,45,.6)}
+#btnB{right:calc(118px + env(safe-area-inset-right,0px));bottom:calc(22px + env(safe-area-inset-bottom,0px));background:rgba(224,181,82,.4);width:66px;height:66px}
+@media (prefers-reduced-motion:reduce){#letterbox:before,#letterbox:after{transition:none}}
+</style>
+<canvas id="gl" tabindex="0" aria-label="Iron Rain 3D scene"></canvas>
+<div id="letterbox" class="layer off"></div>
+<div id="visor" class="layer" hidden><div class="rim"></div>
+  <div class="read" style="left:9vw;top:14vh">STARSHELL 01 · REAPER</div>
+  <div class="read" id="vr2" style="right:9vw;top:14vh;text-align:right">SEAL 100%</div>
+  <div class="read" id="vr3" style="left:9vw;bottom:14vh">TUBE PRESSURE NOMINAL</div>
+  <div class="read" style="right:9vw;bottom:14vh;text-align:right">TARGET: AGEA, MARS</div>
+  <div id="count"></div>
+</div>
+<div id="hud" class="layer" hidden>
+  <div id="hp" class="panel"><div class="lab">SHELL INTEGRITY</div><div class="bar"><i id="hpbar"></i></div><div class="lab" style="margin-top:10px">BOOST</div><div class="bar"><i id="boostbar" style="background:var(--gold)"></i></div></div>
+  <div id="alt" class="panel"><div class="lab">ALTITUDE</div><div class="big" id="altv">100.0 km</div><div class="lab" id="spd">2,400 m/s</div></div>
+  <div id="phase"></div>
+  <div id="warn" hidden></div>
+  <div id="target" hidden><b>DROP ZONE</b></div>
+  <div id="podtag" hidden>DARROW</div>
+</div>
+<div id="objective" class="layer" hidden></div>
+<div id="crosshair" class="layer" hidden></div>
+<div id="prompt" class="layer" hidden></div>
+<div id="subtitle" class="layer" hidden></div>
+<div id="dialogue" class="layer" hidden><div class="who"></div><div class="line"></div><div class="next">A / CLICK ▸</div></div>
+<button id="skip" hidden>SKIP ▸</button>
+<div id="end" class="layer" hidden>
+  <h2>IRON RAIN</h2>
+  <p id="endtext"></p>
+  <div class="stats" id="stats"></div>
+  <button id="again">Fall Again</button>
+</div>
+<div id="title" class="layer">
+  <div class="eyebrow">A Red Rising fan experience</div>
+  <h1>IRON<br>RAIN</h1>
+  <p>Above Mars, ten thousand soldiers wait in the drop tubes. The Reaper falls first.</p>
+  <div id="loadbar"><i></i></div>
+  <button id="begin" disabled>Loading…</button>
+  <small>WASD / arrows to move · mouse to look · Space / J to act · Shift / K to boost · M mutes. On a phone: hold it sideways, use the stick and buttons. Unofficial and non-commercial; Red Rising belongs to Pierce Brown.</small>
+</div>
+<div id="stick" class="tc"><div id="knob"></div></div>
+<div id="btnA" class="tc btn">Act</div>
+<div id="btnB" class="tc btn">Boost</div>
